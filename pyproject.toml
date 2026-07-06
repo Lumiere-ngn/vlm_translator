@@ -30,3 +30,5 @@ vlm-translator = "vlm_translator.cli:app"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]

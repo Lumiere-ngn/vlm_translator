@@ -5,5 +5,7 @@ __pycache__/
 *.egg-info/
 .env
 data/
+models/
+tests/
 llama_cpp/
 llama_cpp.build.json

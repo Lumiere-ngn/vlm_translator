@@ -63,10 +63,16 @@ def call_llama_cpp(
 
 def _extract_chat_content(response_json: dict[str, Any]) -> str:
     try:
-        content = response_json["choices"][0]["message"]["content"]
+        message = response_json["choices"][0]["message"]
+        content = message["content"]
     except (KeyError, IndexError, TypeError) as exc:
         raise LLMResponseError("LLM response was not OpenAI chat-completions compatible.") from exc
     if not isinstance(content, str) or not content.strip():
+        if isinstance(message, dict) and message.get("reasoning_content"):
+            raise LLMResponseError(
+                "LLM response content was empty, but reasoning_content was present. "
+                "Restart llama.cpp with --reasoning off for JSON-output pipeline runs."
+            )
         raise LLMResponseError("LLM response content was empty.")
     return content.strip()
 
@@ -90,4 +96,3 @@ def _strip_markdown_fence(text: str) -> str:
     if len(lines) >= 3 and lines[-1].strip() == "```":
         return "\n".join(lines[1:-1]).strip()
     return stripped
-

@@ -7,6 +7,7 @@ HOST="127.0.0.1"
 PORT="8080"
 CUDA_DEVICES="${CUDA_VISIBLE_DEVICES:-}"
 EXTRA_ARGS=()
+REASONING_ARG_SEEN=0
 
 usage() {
   cat <<'USAGE'
@@ -20,6 +21,7 @@ Options:
   --port PORT         Bind port. Default: 8080
   --binary PATH       llama-server path. Default: llama_cpp/build/bin/llama-server
   --gpu DEVICES      CUDA_VISIBLE_DEVICES value. Default: leave unchanged
+  --reasoning MODE   Pass through llama.cpp reasoning mode. Default: off
   --help, -h          Show this help.
 
 Examples:
@@ -69,12 +71,35 @@ while [[ $# -gt 0 ]]; do
       EXTRA_ARGS+=("$@")
       break
       ;;
+    --reasoning|-rea)
+      [[ $# -ge 2 ]] || fail "$1 requires a value"
+      REASONING_ARG_SEEN=1
+      EXTRA_ARGS+=("$1" "$2")
+      shift 2
+      ;;
+    --reasoning=*)
+      REASONING_ARG_SEEN=1
+      EXTRA_ARGS+=("$1")
+      shift
+      ;;
     *)
       EXTRA_ARGS+=("$1")
       shift
       ;;
   esac
 done
+
+for arg in "${EXTRA_ARGS[@]}"; do
+  case "${arg}" in
+    --reasoning|-rea|--reasoning=*)
+      REASONING_ARG_SEEN=1
+      ;;
+  esac
+done
+
+if [[ "${REASONING_ARG_SEEN}" -eq 0 ]]; then
+  EXTRA_ARGS+=("--reasoning" "off")
+fi
 
 [[ -n "${MODEL_PATH}" ]] || fail "--model /path/to/model.gguf is required"
 [[ -f "${MODEL_PATH}" ]] || fail "Model file does not exist: ${MODEL_PATH}"

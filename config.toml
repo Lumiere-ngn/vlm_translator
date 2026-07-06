@@ -8,7 +8,7 @@ output_schema_path = ""
 [llm]
 provider = "llama_cpp"
 base_url = "http://localhost:8080/v1/chat/completions"
-model = "local-model"
+model = "models/Qwen3-14B-GGUF/Qwen3-14B-Q4_K_M.gguf"
 temperature = 0.0
 max_tokens = 2048
 
@@ -17,4 +17,3 @@ force_refresh = false
 fail_fast = false
 retries = 2
 timeout_seconds = 60.0
-
