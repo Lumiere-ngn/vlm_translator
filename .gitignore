@@ -5,7 +5,6 @@ __pycache__/
 *.egg-info/
 .env
 AGENTS.md
-data/
 models/
 tests/
 llama_cpp/
