@@ -4,6 +4,7 @@ __pycache__/
 *.pyc
 *.egg-info/
 .env
+AGENTS.md
 data/
 models/
 tests/
