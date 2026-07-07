@@ -34,7 +34,7 @@ This project does **not** run video inference itself. It prepares legal text for
 ├── scripts/
 │   ├── build_llama_cpp.sh          # Clone/build llama.cpp locally
 │   └── run_llama_server.sh         # Start llama.cpp server
-├── src/vlm_translator/
+├── src/
 │   ├── cli.py                     # Typer CLI entrypoint
 │   ├── config.py                  # TOML config loading
 │   ├── llm.py                     # llama.cpp client and JSON validation
@@ -67,7 +67,7 @@ python -m venv .venv
 source .venv/bin/activate
 ```
 
-Install the package in editable mode:
+Install the project in editable mode:
 
 ```bash
 pip install -e .
@@ -177,13 +177,13 @@ The default prompt asks the model to return one JSON object containing a `law_id
 Parse laws and create or reuse the cache:
 
 ```bash
-python -m vlm_translator parse --config config.toml
+python -m cli parse --config config.toml
 ```
 
 Run the full pipeline:
 
 ```bash
-python -m vlm_translator run --config config.toml
+python -m cli run --config config.toml
 ```
 
 If installed with `pip install -e .`, the console script is also available:
@@ -196,9 +196,9 @@ vlm-translator run --config config.toml
 Useful overrides:
 
 ```bash
-python -m vlm_translator parse --config config.toml --force-refresh
-python -m vlm_translator run --config config.toml --law-section 133 --law-section 134
-python -m vlm_translator run --config config.toml --prompt-path prompts/default.txt --results-path data/results.json
+python -m cli parse --config config.toml --force-refresh
+python -m cli run --config config.toml --law-section 133 --law-section 134
+python -m cli run --config config.toml --prompt-path prompts/default.txt --results-path data/results.json
 ```
 
 ## Cache behavior
