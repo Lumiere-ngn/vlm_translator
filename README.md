@@ -239,22 +239,6 @@ Each processed law produces a result object similar to:
 
 If a section fails and `fail_fast = false`, the result is written with `status = "error"` and the error message is stored in `error`.
 
-## Tests
-
-Install development dependencies and run:
-
-```bash
-pip install -e '.[test]'
-pytest
-```
-
-or:
-
-```bash
-pip install -r requirements-dev.txt
-pytest
-```
-
 ## Notes and limitations
 
 - The parser is tailored to the structure of Ontario e-Laws HTML for the Highway Traffic Act.
