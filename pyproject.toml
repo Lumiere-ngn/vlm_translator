@@ -25,10 +25,10 @@ test = [
 ]
 
 [project.scripts]
-vlm-translator = "vlm_translator.cli:app"
+vlm-translator = "cli:app"
 
-[tool.setuptools.packages.find]
-where = ["src"]
+[tool.setuptools]
+py-modules = ["cli", "config", "llm", "models", "ontario_laws", "pipeline", "prompting"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
