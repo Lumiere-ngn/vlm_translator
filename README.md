@@ -21,27 +21,6 @@ This project does **not** run video inference itself. It prepares legal text for
 8. Optionally validates the response against a JSON Schema.
 9. Writes pipeline outputs to `data/results.json`.
 
-## Current scope
-
-Implemented:
-
-- CLI commands for parsing and running the pipeline.
-- Ontario e-Laws retrieval and Part X parsing.
-- Parsed-law cache loading and validation.
-- Config loading from `config.toml`.
-- Prompt rendering with law placeholders.
-- llama.cpp HTTP client.
-- JSON response parsing and optional JSON Schema validation.
-- Retry and error-recording behavior.
-- Tests for the core pipeline behavior.
-
-Not implemented:
-
-- VLM video inference.
-- Dashcam frame extraction.
-- Automatic model download.
-- Legal interpretation or legal advice.
-
 ## Repository layout
 
 ```text
@@ -106,34 +85,6 @@ You can also install from the requirements files:
 pip install -r requirements.txt
 pip install -r requirements-dev.txt
 ```
-
-## Build llama.cpp
-
-The repository includes a helper script for building llama.cpp locally:
-
-```bash
-bash scripts/build_llama_cpp.sh
-```
-
-The script:
-
-- clones `https://github.com/ggml-org/llama.cpp` into `llama_cpp/` if needed;
-- uses `llama_cpp/build/` as the build directory;
-- prefers `/usr/local/cuda-12.3/bin/nvcc` when present;
-- falls back to `nvcc` if available;
-- builds for CUDA architecture `89` when CUDA is available;
-- builds CPU-only when CUDA is unavailable or `--cpu-only` is passed;
-- writes a local `llama_cpp.build.json` manifest.
-
-Useful options:
-
-```bash
-bash scripts/build_llama_cpp.sh --update
-bash scripts/build_llama_cpp.sh --cpu-only
-bash scripts/build_llama_cpp.sh --jobs 8
-```
-
-`llama_cpp/`, `llama_cpp.build.json`, and local model files are machine-specific artifacts and should not be treated as project source.
 
 ## Start the llama.cpp server
 
