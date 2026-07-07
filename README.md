@@ -1,65 +1,171 @@
 # VLM_translator
 
-VLM_translator is a Python pipeline for retrieving Ontario traffic law text, parsing Part X of the Highway Traffic Act into JSON, and sending selected law records to a llama.cpp-backed LLM with a user-provided prompt.
+VLM_translator is a Python CLI pipeline for turning Ontario Highway Traffic Act text into structured, vision-oriented prompts for downstream VLM work.
 
-Current status: initial CLI implementation with parser, parsed-law cache, config loading, prompt rendering, llama.cpp HTTP client, and tests.
+The current workflow retrieves Part X of Ontario's Highway Traffic Act, parses the individual law sections into JSON records, and sends selected records to a llama.cpp-backed LLM. The default prompt asks the LLM to translate each statute into atomic visual questions that could be answered from dashcam-style video evidence.
 
-## Workflow
+This project does **not** run video inference itself. It prepares legal text for later VLM evaluation by converting statutes into structured, visually checkable question sets.
 
-The pipeline:
+## What the pipeline does
 
-1. Fetch the Ontario Highway Traffic Act from the Ontario e-Laws source.
-2. Extract only Part X, "Rules of the Road".
-3. Save parsed law records with `title`, `section_number`, and `content`.
-4. Reuse the parsed-law cache on later runs when it already exists and validates.
-5. Send all or selected law records to a llama.cpp LLM.
-6. Save model outputs as JSON.
+1. Retrieves the Ontario Highway Traffic Act from the Ontario e-Laws API.
+2. Extracts only Part X, **Rules of the Road**.
+3. Parses each section into a record with:
+   - `title`
+   - `section_number`
+   - `content`
+4. Saves or reuses the parsed-law cache at `data/laws.json`.
+5. Renders a prompt for each selected law section.
+6. Calls a local llama.cpp OpenAI-compatible chat-completions server.
+7. Parses the LLM response as JSON.
+8. Optionally validates the response against a JSON Schema.
+9. Writes pipeline outputs to `data/results.json`.
+
+## Current scope
+
+Implemented:
+
+- CLI commands for parsing and running the pipeline.
+- Ontario e-Laws retrieval and Part X parsing.
+- Parsed-law cache loading and validation.
+- Config loading from `config.toml`.
+- Prompt rendering with law placeholders.
+- llama.cpp HTTP client.
+- JSON response parsing and optional JSON Schema validation.
+- Retry and error-recording behavior.
+- Tests for the core pipeline behavior.
+
+Not implemented:
+
+- VLM video inference.
+- Dashcam frame extraction.
+- Automatic model download.
+- Legal interpretation or legal advice.
+
+## Repository layout
+
+```text
+.
+├── config.toml                    # Runtime configuration
+├── data/
+│   ├── laws.json                  # Parsed Part X law cache
+│   └── results.json               # Generated LLM outputs
+├── prompts/
+│   └── default.txt                # Default legal-to-vision prompt
+├── scripts/
+│   ├── build_llama_cpp.sh          # Clone/build llama.cpp locally
+│   └── run_llama_server.sh         # Start llama.cpp server
+├── src/vlm_translator/
+│   ├── cli.py                     # Typer CLI entrypoint
+│   ├── config.py                  # TOML config loading
+│   ├── llm.py                     # llama.cpp client and JSON validation
+│   ├── models.py                  # Pydantic data models
+│   ├── ontario_laws.py            # Retrieval, parsing, cache handling
+│   ├── pipeline.py                # End-to-end orchestration
+│   └── prompting.py               # Prompt rendering
+├── tests/                         # pytest test suite
+├── pyproject.toml
+├── requirements.txt
+└── requirements-dev.txt
+```
+
+## Requirements
+
+- Python 3.11+
+- `git`
+- `cmake`
+- A local GGUF model for llama.cpp
+- CUDA toolchain if you want GPU acceleration; otherwise llama.cpp can be built CPU-only
+
+Python dependencies are listed in `requirements.txt` and `pyproject.toml`.
 
 ## Setup
 
-Use Python's built-in virtual environment support:
+Create and activate a virtual environment:
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
 ```
 
-Conda is not required for the Python pipeline. It may still be useful separately if you want to manage GPU libraries or llama.cpp build dependencies.
+Install the package in editable mode:
 
-## llama.cpp Server
+```bash
+pip install -e .
+```
 
-The pipeline assumes llama.cpp is running as an OpenAI-compatible HTTP server. Build it locally with:
+For development and tests:
+
+```bash
+pip install -e '.[test]'
+```
+
+You can also install from the requirements files:
+
+```bash
+pip install -r requirements.txt
+pip install -r requirements-dev.txt
+```
+
+## Build llama.cpp
+
+The repository includes a helper script for building llama.cpp locally:
 
 ```bash
 bash scripts/build_llama_cpp.sh
 ```
 
-This clones `https://github.com/ggml-org/llama.cpp` into `llama_cpp/` and builds `llama-server`. The script prefers `/usr/local/cuda-12.3/bin/nvcc` when present, then falls back to `nvcc`. With CUDA available, it builds for CUDA architecture `89`, which matches NVIDIA L40S/Ada hardware. Without CUDA, it builds CPU-only and prints a warning.
+The script:
 
-Start the server with a local GGUF model:
+- clones `https://github.com/ggml-org/llama.cpp` into `llama_cpp/` if needed;
+- uses `llama_cpp/build/` as the build directory;
+- prefers `/usr/local/cuda-12.3/bin/nvcc` when present;
+- falls back to `nvcc` if available;
+- builds for CUDA architecture `89` when CUDA is available;
+- builds CPU-only when CUDA is unavailable or `--cpu-only` is passed;
+- writes a local `llama_cpp.build.json` manifest.
+
+Useful options:
+
+```bash
+bash scripts/build_llama_cpp.sh --update
+bash scripts/build_llama_cpp.sh --cpu-only
+bash scripts/build_llama_cpp.sh --jobs 8
+```
+
+`llama_cpp/`, `llama_cpp.build.json`, and local model files are machine-specific artifacts and should not be treated as project source.
+
+## Start the llama.cpp server
+
+Start the local OpenAI-compatible server with a GGUF model:
 
 ```bash
 bash scripts/run_llama_server.sh --model /path/to/model.gguf
 ```
 
-Expected chat completions URL:
+By default, the server binds to:
 
 ```text
-http://localhost:8080/v1/chat/completions
+http://127.0.0.1:8080/v1/chat/completions
 ```
 
-By default, the run script leaves `CUDA_VISIBLE_DEVICES` unchanged so llama.cpp can use the GPUs visible in the current shell. To restrict the server to a specific GPU, pass `--gpu`:
+To choose a specific GPU:
 
 ```bash
 bash scripts/run_llama_server.sh --model /path/to/model.gguf --gpu 0
 ```
 
-Model files are not downloaded by this project. Provide a local `.gguf` model path.
+To pass extra llama.cpp arguments, put them after `--`:
 
-## Config File
+```bash
+bash scripts/run_llama_server.sh --model /path/to/model.gguf --gpu 2 -- --ctx-size 8192
+```
 
-`config.toml` controls the runtime behavior:
+The run script defaults llama.cpp reasoning mode to `off` unless you override it. This matters because the pipeline expects JSON in the chat message `content` field.
+
+## Configuration
+
+The default configuration is in `config.toml`:
 
 ```toml
 source_url = "https://www.ontario.ca/laws/statute/90h08#BK230"
@@ -72,7 +178,7 @@ output_schema_path = ""
 [llm]
 provider = "llama_cpp"
 base_url = "http://localhost:8080/v1/chat/completions"
-model = "local-model"
+model = "models/Qwen3-14B-GGUF/Qwen3-14B-Q4_K_M.gguf"
 temperature = 0.0
 max_tokens = 2048
 
@@ -83,18 +189,58 @@ retries = 2
 timeout_seconds = 60.0
 ```
 
-If `law_sections` is empty, every parsed Part X law will be processed. If it contains values such as `["133", "134"]`, only those sections will be sent to the LLM.
+Important fields:
 
-`output_schema_path` is optional. If set, it should point to a JSON Schema file used to validate each LLM JSON response.
+| Field | Meaning |
+|---|---|
+| `source_url` | Ontario e-Laws page used to resolve the API endpoint. |
+| `parsed_laws_path` | JSON cache path for parsed law records. |
+| `prompt_path` | Prompt template used for each law section. |
+| `results_path` | Output path for LLM results. |
+| `law_sections` | Section filter. Empty list means process all parsed sections. |
+| `output_schema_path` | Optional JSON Schema file for validating each LLM response. |
+| `llm.base_url` | llama.cpp OpenAI-compatible chat-completions endpoint. |
+| `llm.model` | Model identifier sent in the chat-completions payload. |
+| `pipeline.retries` | Number of retries after the first LLM attempt. |
+| `pipeline.fail_fast` | If `true`, stop on first processing error. If `false`, record errors and continue. |
+
+Relative paths in the config are resolved relative to the config file location.
+
+## Prompt templates
+
+Prompt templates may use any of these placeholders:
+
+```text
+{{law_json}}
+{{title}}
+{{section_number}}
+{{content}}
+```
+
+If a prompt contains no placeholder, the pipeline appends the law JSON automatically.
+
+The default prompt asks the model to return one JSON object containing a `law_id` and a list of atomic visual questions. Each question should be answerable as `True`, `False`, or `Uncertain`.
 
 ## Commands
 
+Parse laws and create or reuse the cache:
+
 ```bash
 python -m vlm_translator parse --config config.toml
+```
+
+Run the full pipeline:
+
+```bash
 python -m vlm_translator run --config config.toml
 ```
 
-The parse command creates or reuses the parsed-law cache. The run command reuses valid parsed laws unless forced to refresh.
+If installed with `pip install -e .`, the console script is also available:
+
+```bash
+vlm-translator parse --config config.toml
+vlm-translator run --config config.toml
+```
 
 Useful overrides:
 
@@ -104,28 +250,64 @@ python -m vlm_translator run --config config.toml --law-section 133 --law-sectio
 python -m vlm_translator run --config config.toml --prompt-path prompts/default.txt --results-path data/results.json
 ```
 
-## Cache Behavior
+## Cache behavior
 
 Before retrieving or parsing laws, the pipeline checks `parsed_laws_path`.
 
 - If the cache exists and validates, it is reused.
 - If the cache is missing or invalid, the source is retrieved and parsed again.
 - `--force-refresh` or `force_refresh = true` ignores the cache.
-- Prompt, model, selected sections, and output path changes do not invalidate the parsed-law cache.
+- Changes to the prompt, selected law sections, model, or result path do not invalidate the parsed-law cache.
+
+The committed `data/laws.json` cache currently contains parsed Part X records from the Ontario Highway Traffic Act. Regenerate it when the source changes or when parser behavior changes.
+
+## Output format
+
+Each processed law produces a result object similar to:
+
+```json
+{
+  "section_number": "136",
+  "title": "Stop at through highway",
+  "llm_output": {
+    "law_id": "HTA_136",
+    "questions": [
+      {
+        "id": "C1",
+        "type": "CONDITION",
+        "text": "Is there a stop sign visible facing the ego vehicle?",
+        "allowed_responses": ["True", "False", "Uncertain"]
+      }
+    ]
+  },
+  "raw_response": "{...}",
+  "status": "ok",
+  "error": null
+}
+```
+
+If a section fails and `fail_fast = false`, the result is written with `status = "error"` and the error message is stored in `error`.
 
 ## Tests
 
-Install dev dependencies and run:
+Install development dependencies and run:
+
+```bash
+pip install -e '.[test]'
+pytest
+```
+
+or:
 
 ```bash
 pip install -r requirements-dev.txt
 pytest
 ```
 
-## Local llama.cpp Files
+## Notes and limitations
 
-The `llama_cpp/` source/build directory and `llama_cpp.build.json` manifest are ignored by Git. They are local machine artifacts, not project source. Another user can recreate them by running:
-
-```bash
-bash scripts/build_llama_cpp.sh
-```
+- The parser is tailored to the structure of Ontario e-Laws HTML for the Highway Traffic Act.
+- The project preserves source law text for transformation, but it does not provide legal advice.
+- The quality of generated VLM questions depends heavily on the prompt and the local model.
+- JSON validation only guarantees structural conformity to a schema; it does not guarantee legal correctness or visual usefulness.
+- Local GGUF models are not downloaded by this repository.
