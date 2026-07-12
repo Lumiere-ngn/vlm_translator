@@ -65,8 +65,8 @@ def run(
         prompt_path=prompt_path,
         results_path=results_path,
     )
-    results = run_pipeline(parsed_config)
-    ok_count = sum(1 for result in results if result.status == "ok")
-    error_count = len(results) - ok_count
+    result = run_pipeline(parsed_config)
+    ok_count = len(result.catalog.statutes)
+    error_count = len(result.issues)
     typer.echo(f"Results written: {parsed_config.results_path}")
-    typer.echo(f"Processed: {len(results)} ok={ok_count} errors={error_count}")
+    typer.echo(f"Processed: {ok_count + error_count} ok={ok_count} errors={error_count}")

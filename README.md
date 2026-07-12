@@ -19,7 +19,8 @@ This project does **not** run video inference itself. It prepares legal text for
 6. Calls a local llama.cpp OpenAI-compatible chat-completions server.
 7. Parses the LLM response as JSON.
 8. Optionally validates the response against a JSON Schema.
-9. Writes pipeline outputs to `data/results.json`.
+9. Joins each successful translation with its original statute metadata.
+10. Writes a Repo B-compatible statute catalog to `data/results.json`.
 
 ## Repository layout
 
@@ -170,7 +171,10 @@ Prompt templates may use any of these placeholders:
 
 If a prompt contains no placeholder, the pipeline appends the law JSON automatically.
 
-The default prompt asks the model to return one JSON object containing a `law_id` and a list of atomic visual questions. Each question should be answerable as `True`, `False`, or `Uncertain`.
+The default prompt asks the model to return one JSON object containing a `law_id`
+and atomic condition/action questions. The pipeline normalizes question types to
+lowercase and writes only the fields consumed by Repo B. It does not add evidence
+channels or response-option metadata.
 
 ## Commands
 
@@ -214,30 +218,39 @@ The committed `data/laws.json` cache currently contains parsed Part X records fr
 
 ## Output format
 
-Each processed law produces a result object similar to:
+The output has the same shape as Repo B's `VLM-Monitor/adv_questions.json`:
 
 ```json
 {
-  "section_number": "136",
-  "title": "Stop at through highway",
-  "llm_output": {
-    "law_id": "HTA_136",
-    "questions": [
-      {
-        "id": "C1",
-        "type": "CONDITION",
-        "text": "Is there a stop sign visible facing the ego vehicle?",
-        "allowed_responses": ["True", "False", "Uncertain"]
-      }
-    ]
-  },
-  "raw_response": "{...}",
-  "status": "ok",
-  "error": null
+  "version": "1.0",
+  "description": "Ontario Highway Traffic Act statutes translated into condition/action sub-questions.",
+  "statutes": [
+    {
+      "id": "HTA_136",
+      "article": "136",
+      "jurisdiction": "Ontario",
+      "name": "Stop at through highway",
+      "statute_text": "136 Every driver shall stop at a stop sign.",
+      "sub_questions": [
+        {
+          "id": "C1",
+          "type": "condition",
+          "text": "Is there a stop sign visible facing the ego vehicle?"
+        },
+        {
+          "id": "A1",
+          "type": "action",
+          "text": "Did the ego vehicle stop?"
+        }
+      ]
+    }
+  ]
 }
 ```
 
-If a section fails and `fail_fast = false`, the result is written with `status = "error"` and the error message is stored in `error`.
+If a section fails and `fail_fast = false`, it is excluded from the catalog and
+reported by the CLI error count. Repo B therefore receives only valid statute
+records.
 
 ## Notes and limitations
 

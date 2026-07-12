@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class LLMConfig(BaseModel):
@@ -65,12 +65,63 @@ class ParsedLawCache(BaseModel):
     laws: list[LawRecord]
 
 
-class PipelineResult(BaseModel):
+class TranslatedQuestion(BaseModel):
+    id: str
+    type: Literal["condition", "action"]
+    text: str = Field(min_length=1)
+
+    model_config = ConfigDict(extra="ignore")
+
+    @field_validator("type", mode="before")
+    @classmethod
+    def normalize_type(cls, value: Any) -> str:
+        return str(value).lower()
+
+    @model_validator(mode="after")
+    def validate_id(self) -> "TranslatedQuestion":
+        expected_prefix = "C" if self.type == "condition" else "A"
+        if not self.id.startswith(expected_prefix) or not self.id[1:].isdigit():
+            raise ValueError(f"{self.type} question ID must use {expected_prefix}<number>")
+        return self
+
+
+class TranslatedLawOutput(BaseModel):
+    law_id: str = Field(min_length=1)
+    questions: list[TranslatedQuestion] = Field(min_length=1)
+
+    model_config = ConfigDict(extra="ignore")
+
+    @model_validator(mode="after")
+    def validate_questions(self) -> "TranslatedLawOutput":
+        ids = [question.id for question in self.questions]
+        if len(ids) != len(set(ids)):
+            raise ValueError("question IDs must be unique within a statute")
+        return self
+
+
+class MonitorStatute(BaseModel):
+    id: str
+    article: str | None
+    jurisdiction: Literal["Ontario"] = "Ontario"
+    name: str
+    statute_text: str
+    sub_questions: list[TranslatedQuestion]
+
+
+class StatuteCatalog(BaseModel):
+    version: Literal["1.0"] = "1.0"
+    description: str = "Ontario Highway Traffic Act statutes translated into condition/action sub-questions."
+    statutes: list[MonitorStatute] = Field(min_length=1)
+
+
+class PipelineIssue(BaseModel):
     section_number: str
     title: str
-    llm_output: dict[str, Any] | list[Any] | None = None
-    raw_response: str | None = None
-    status: str
-    error: str | None = None
+    error: str
+
+
+class PipelineRunResult(BaseModel):
+    catalog: StatuteCatalog
+    issues: list[PipelineIssue] = Field(default_factory=list)
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
